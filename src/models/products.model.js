@@ -1,4 +1,4 @@
-import productModel from "./products.schema.js";
+import productSchema from "./products.schema.js";
 
 export async function storeProducts(products) {
   const productQueries = [];
@@ -11,7 +11,7 @@ export async function storeProducts(products) {
       },
     })
   );
-  return await productModel.bulkWrite(productQueries, {
+  return await productSchema.bulkWrite(productQueries, {
     ordered: false,
   });
 }
@@ -29,12 +29,12 @@ export async function getProducts(filters) {
     ...(title && { title: { $regex: new RegExp(title, "i") } }),
   };
 
-  const productList = await productModel.find(productQuery, null, {
+  const productList = await productSchema.find(productQuery, null, {
     limit: Number(limit),
     skip: Number(limit) * (Number(page) - 1),
     sort: { title: 1 },
   });
-  const totalCount = await productModel.find(productQuery).count();
+  const totalCount = await productSchema.find(productQuery).count();
 
   return {
     products: productList,
