@@ -1,6 +1,20 @@
 import ordersSchema from "./orders.schema.js";
 
-export async function storeOrders() {}
+export async function storeOrders(orders) {
+  const orderQueries = [];
+  orders.forEach((order) =>
+    orderQueries.push({
+      updateOne: {
+        filter: { platform_id: order.platform_id },
+        update: { ...order },
+        upsert: true,
+      },
+    })
+  );
+  return await ordersSchema.bulkWrite(orderQueries, {
+    ordered: false,
+  });
+}
 
 export async function getOrders(filters) {
   const { id, platform_id, line_items_ids } = filters;

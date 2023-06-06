@@ -44,3 +44,9 @@ export async function getProducts(filters) {
     totalCount: totalCount,
   };
 }
+
+export async function findProductByPlatformId(platformId) {
+  return await productSchema.findOne({
+    platform_id: platformId,
+  });
+}
