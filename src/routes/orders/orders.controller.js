@@ -2,19 +2,21 @@ import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import { storeOrders, getOrders } from "../../models/orders.model.js";
 import { findProductByPlatformId } from "../../models/products.model.js";
+import { resetFetchBulkWriteResult, updateFetchBulkWriteResult } from "../../shared/bulkWriteResponse.js";
+import { buildShopifyLink } from "../../shared/buildShopifyLink.js";
 
 const rutterShopifyURL = process.env.RUTTER_SHOPIFY_URL;
 const token = process.env.TOKEN_RUTTER_SHOPIFY_URL;
-let fetchOrdersBulkWriteResult;
+let bulkWriteResult;
 
 export async function httpFetchOrders(req, res) {
   try {
-    resetFetchOrdersBulkWriteResult();
+    bulkWriteResult = resetFetchBulkWriteResult();
     const orderLimit = process.env.ORDER_FETCH_LIMIT;
     await fetchOrdersFromShopify(`${rutterShopifyURL}/orders.json?limit=${orderLimit}`, token);
     const response = {
       message: "Orders fetched successfully from Rutter Shopify!",
-      result: fetchOrdersBulkWriteResult,
+      result: bulkWriteResult,
     };
     return res.status(200).json(response);
   } catch (error) {
@@ -32,19 +34,10 @@ async function fetchOrdersFromShopify(shopifyURL, shopifyToken) {
   if (
     headers.link &&
     headers.link.includes(`rel="next"`) &&
-    fetchOrdersBulkWriteResult.modifiedCount < maxOrdersToFetch &&
-    fetchOrdersBulkWriteResult.upsertedCount < maxOrdersToFetch
+    bulkWriteResult.modifiedCount < maxOrdersToFetch &&
+    bulkWriteResult.upsertedCount < maxOrdersToFetch
   ) {
-    let startIndex;
-    if (headers.link.includes(`rel="previous",`)) {
-      startIndex = headers.link.indexOf(`rel="previous"`) + 15;
-    }
-    const shopifyLink = headers.link
-      .slice(startIndex)
-      .split(";")[0]
-      .replace(/[\<\>]/g, "");
-
-    await fetchOrdersFromShopify(shopifyLink, shopifyToken);
+    await fetchOrdersFromShopify(buildShopifyLink(headers), shopifyToken);
   }
 }
 
@@ -59,7 +52,7 @@ async function storeFetchedOrders(fetchedData) {
     })
   );
   const response = await storeOrders(transformedOrders);
-  updateFetchOrdersBulkWriteResult(response);
+  bulkWriteResult = updateFetchBulkWriteResult(bulkWriteResult, response);
 }
 
 async function storeLineItems(lineItems) {
@@ -90,24 +83,4 @@ export async function httpGetOrders(req, res) {
   } catch (error) {
     return res.status(400).json({ message: "There was an error retrieving the orders!", errors: error.message });
   }
-}
-
-function updateFetchOrdersBulkWriteResult(response) {
-  fetchOrdersBulkWriteResult = {
-    insertedCount: fetchOrdersBulkWriteResult.insertedCount + response.insertedCount,
-    matchedCount: fetchOrdersBulkWriteResult.matchedCount + response.matchedCount,
-    modifiedCount: fetchOrdersBulkWriteResult.modifiedCount + response.modifiedCount,
-    deletedCount: fetchOrdersBulkWriteResult.deletedCount + response.deletedCount,
-    upsertedCount: fetchOrdersBulkWriteResult.upsertedCount + response.upsertedCount,
-  };
-}
-
-function resetFetchOrdersBulkWriteResult() {
-  fetchOrdersBulkWriteResult = {
-    insertedCount: 0,
-    matchedCount: 0,
-    modifiedCount: 0,
-    deletedCount: 0,
-    upsertedCount: 0,
-  };
 }

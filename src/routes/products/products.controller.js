@@ -1,20 +1,22 @@
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import { storeProducts, getProducts } from "../../models/products.model.js";
+import { resetFetchBulkWriteResult, updateFetchBulkWriteResult } from "../../shared/bulkWriteResponse.js";
+import { buildShopifyLink } from "../../shared/buildShopifyLink.js";
 
 const rutterShopifyURL = process.env.RUTTER_SHOPIFY_URL;
 const token = process.env.TOKEN_RUTTER_SHOPIFY_URL;
-let fetchProductsBulkWriteResult;
+let bulkWriteResult;
 
 export async function httpFetchProducts(req, res) {
   try {
-    resetFetchProductsBulkWriteResult();
+    bulkWriteResult = resetFetchBulkWriteResult();
     let { limit } = req.query;
     if (!limit || limit > 50) limit = 50;
     await fetchProductsFromShopify(`${rutterShopifyURL}/products.json?limit=${limit}`, token);
     const response = {
       message: "Products fetched successfully from Rutter Shopify!",
-      result: fetchProductsBulkWriteResult,
+      result: bulkWriteResult,
     };
     return res.status(200).json(response);
   } catch (error) {
@@ -30,16 +32,7 @@ async function fetchProductsFromShopify(shopifyURL, shopifyToken) {
   });
   await storeFetchedProducts(data);
   if (headers.link && headers.link.includes(`rel="next"`)) {
-    let startIndex;
-    if (headers.link.includes(`rel="previous",`)) {
-      startIndex = headers.link.indexOf(`rel="previous"`) + 15;
-    }
-    const shopifyLink = headers.link
-      .slice(startIndex)
-      .split(";")[0]
-      .replace(/[\<\>]/g, "");
-
-    await fetchProductsFromShopify(shopifyLink, shopifyToken);
+    await fetchProductsFromShopify(buildShopifyLink(headers), shopifyToken);
   }
 }
 
@@ -52,7 +45,7 @@ async function storeFetchedProducts(fetchedData) {
     };
   });
   const response = await storeProducts(transformedProducts);
-  updateFetchProductsBulkWriteResult(response);
+  bulkWriteResult = updateFetchBulkWriteResult(bulkWriteResult, response);
 }
 
 export async function httpGetProducts(req, res) {
@@ -69,24 +62,4 @@ export async function httpGetProducts(req, res) {
   } catch (error) {
     return res.status(400).json({ message: "There was an error retrieving the products!", errors: error.message });
   }
-}
-
-function updateFetchProductsBulkWriteResult(response) {
-  fetchProductsBulkWriteResult = {
-    insertedCount: fetchProductsBulkWriteResult.insertedCount + response.insertedCount,
-    matchedCount: fetchProductsBulkWriteResult.matchedCount + response.matchedCount,
-    modifiedCount: fetchProductsBulkWriteResult.modifiedCount + response.modifiedCount,
-    deletedCount: fetchProductsBulkWriteResult.deletedCount + response.deletedCount,
-    upsertedCount: fetchProductsBulkWriteResult.upsertedCount + response.upsertedCount,
-  };
-}
-
-function resetFetchProductsBulkWriteResult() {
-  fetchProductsBulkWriteResult = {
-    insertedCount: 0,
-    matchedCount: 0,
-    modifiedCount: 0,
-    deletedCount: 0,
-    upsertedCount: 0,
-  };
 }
